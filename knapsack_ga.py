@@ -6,134 +6,84 @@
 
 import random
 
-def KP_GA(v, w, K, N=50, s=0.2, c=0.8, m=0.01, maxI=1000, penalty=1000, t_size=3, elitism=True):
-    '''
-    This function solves the Knapsack Problem using a Genetic Algorithm.
+def KS_GA(values, weights, capacity, params):
+    """
+    Solves the Knapsack problem using a genetic algorithm.
 
     Parameters:
-    - v: list of values of the items
-    - w: list of weights of the items
-    - K: maximum weight allowed
-    - N: number of individuals in the population
-    - s: selection rate
-    - c: crossover rate
-    - m: mutation rate
-    - maxI: maximum number of iterations
-    - penalty: penalty coefficient
-    - t_size: tournament size
-    - elitism: whether to use elitism or not
+    - values: List of item values.
+    - weights: List of item weights.
+    - capacity: Maximum weight capacity of the knapsack.
+    - params: Dictionary of GA parameters.
 
     Returns:
-    - selected: list of selected items
-    - best_value: value of the best solution
-    - best_weight: weight of the best solution
-    '''
-    def populate():
-        '''
-        Initialize the population with random individuals.
+    - best_solution: Binary list indicating selected items.
+    - best_value: Total value of the best solution.
+    - best_weight: Total weight of the best solution.
+    """
+    # GA Parameters
+    N = params.get('population_size', 100)
+    s = params.get('selection_rate', 0.5)
+    c = params.get('crossover_rate', 0.7)
+    m = params.get('mutation_rate', 0.01)
+    max_iterations = params.get('max_iterations', 1000)
+    t_size = params.get('tournament_size', 3)
+    elitism = params.get('elitism', True)
+    penalty_coefficient = params.get('penalty_coefficient', 1000)
 
-        Returns:
-        - population: list of individuals
-        '''
+    num_items = len(values)
+
+    # Helper functions
+    def initialize_population():
         population = []
         for _ in range(N):
-            individual = [random.randint(0,1) for _ in range(len(v))]
+            individual = [random.randint(0, 1) for _ in range(num_items)]
             population.append(individual)
         return population
 
     def evaluate(individual):
-        '''
-        For a given individual, evaluate its fitness.
-        This means calculating the total value and total weight of the items selected.
-
-        Parameters:
-        - individual: list of 0s and 1s representing the items selected
-
-        Returns:
-        - fitness: value of the fitness function
-        - total_value: total value of the items selected
-        - total_weight: total weight of the items selected
-        '''
-        total_value = sum(v * x for v, x in zip(v, individual)) # A binary product
-        total_weight = sum(w * x for w, x in zip(w, individual)) # Again, a binary product
-
-        if total_weight <= K: # If the weight is less than the maximum allowed
+        total_value = sum(v * x for v, x in zip(values, individual))
+        total_weight = sum(w * x for w, x in zip(weights, individual))
+        if total_weight <= capacity:
             fitness = total_value
         else:
-            fitness = total_value - penalty * (total_weight - K)
+            fitness = total_value - penalty_coefficient * (total_weight - capacity)
         return fitness, total_value, total_weight
 
     def tournament_selection(population, fitnesses):
-        '''
-        Selects the parents for the next generation using tournament selection.
-
-        Parameters:
-        - population: list of individuals
-        - fitnesses: list of fitness values for each individual
-
-        Returns:
-        - selected_parents: list of selected parents
-        '''
         selected = []
-        for _ in range(int(s * N)): # Select s * N parents
-            fighters = random.sample(range(N), t_size) # Randomly select t_size individuals
-            best = max(fighters, key=lambda idx: fitnesses[idx][0]) # Select the best one
+        current_population_size = len(population)
+        num_selected = int(s * current_population_size)
+        for _ in range(num_selected):
+            competitors = random.sample(range(current_population_size), t_size)
+            best = max(competitors, key=lambda idx: fitnesses[idx][0])
             selected.append(population[best])
         return selected
 
-    def crossover(p1, p2):
-        '''
-        Based on the crossover rate, create two children from two parents.
-
-        Parameters:
-        - p1: parent 1
-        - p2: parent 2
-
-        Returns:
-        - c1: child 1
-        - c2: child 2
-        '''
-        if random.random() < c: # If the crossover rate is met XD
-            c1, c2 = [], [] # Children
-            for g1, g2 in zip(p1, p2): # For each gene in the parents
-                if random.random() < 0.5: # Randomly select one of the genes
-                    c1.append(g1)
-                    c2.append(g2)
+    def crossover(parent1, parent2):
+        if random.random() < c:
+            child1, child2 = [], []
+            for gene1, gene2 in zip(parent1, parent2):
+                if random.random() < 0.5:
+                    child1.append(gene1)
+                    child2.append(gene2)
                 else:
-                    c1.append(g2)
-                    c2.append(g1)
-            return c1, c2
+                    child1.append(gene2)
+                    child2.append(gene1)
+            return child1, child2
         else:
-            return p1[:], p2[:] # If the crossover rate is not met, return the parents :v
+            return parent1[:], parent2[:]
 
     def mutate(individual):
-        '''
-        Based on the mutation rate, flip the genes of the individual.
-
-        Parameters:
-        - individual: list of 0s and 1s
-
-        Returns:
-        - individual: mutated individual
-        '''
-        for i in range(len(v)): # For each gene in the individual
-            if random.random() < m: # If the mutation rate is met
-                individual[i] = 1 - individual[i] # Flip the gene
+        for i in range(num_items):
+            if random.random() < m:
+                individual[i] = 1 - individual[i]
         return individual
 
     def repair(individual):
-        '''
-        Here we repair the individual if the total weight exceeds the maximum allowed.
-
-        Parameters:
-        - individual: list of 0s and 1s
-
-        Returns:
-        - individual: repaired individual
-        '''
         while True:
-            total_weight = sum(w * x for w, x in zip(w, individual))
-            if total_weight <= K:
+            total_weight = sum(w * x for w, x in zip(weights, individual))
+            if total_weight <= capacity:
                 break
             ones_indices = [i for i, gene in enumerate(individual) if gene == 1]
             if not ones_indices:
@@ -143,35 +93,39 @@ def KP_GA(v, w, K, N=50, s=0.2, c=0.8, m=0.01, maxI=1000, penalty=1000, t_size=3
         return individual
 
     # Initialization
-    population = populate() # Initial population
-    fitnesses = [evaluate(ind) for ind in population] # Fitness of each individual
-    best_solution = max(zip(population, fitnesses), key=lambda x: x[1][0]) # Based on fitness
-    best_individual = best_solution[0][:] # Best individual, using : to copy the list
-    best_fitness, best_value, best_weight = best_solution[1] # Best fitness, value and weight
+    population = initialize_population()
+    fitnesses = [evaluate(ind) for ind in population]
+    best_solution = max(zip(population, fitnesses), key=lambda x: x[1][0])
+    best_individual = best_solution[0][:]
+    best_fitness, best_value, best_weight = best_solution[1]
 
     # Main GA loop
-    for iteration in range(maxI):
+    for iteration in range(max_iterations):
         # Selection
         selected_parents = tournament_selection(population, fitnesses)
 
         # Crossover and Mutation
-        offspring = [] # New generation
-        for i in range(0, len(selected_parents), 2):
-            p1, p2 = selected_parents[i], selected_parents[(i+1) % len(selected_parents)] # Parents
-            c1, c2 = crossover(p1, p2) # Children
-            c1 = mutate(c1)
-            c2 = mutate(c2)
-            c1 = repair(c1)
-            c2 = repair(c2)
-            offspring.extend([c1, c2])
+        offspring = []
+        while len(offspring) < N:
+            parent1, parent2 = random.sample(selected_parents, 2)
+            child1, child2 = crossover(parent1, parent2)
+            child1 = mutate(child1)
+            child2 = mutate(child2)
+            child1 = repair(child1)
+            child2 = repair(child2)
+            offspring.extend([child1, child2])
+
+        # If offspring exceeds N, truncate the list
+        offspring = offspring[:N]
 
         # Evaluate Offspring
         offspring_fitnesses = [evaluate(ind) for ind in offspring]
 
-        # Replacement
+        # Replacement with Elitism
         if elitism:
-            # Keep the best individual from the current generation
+            # Find the worst individual in offspring
             worst_idx = min(range(len(offspring_fitnesses)), key=lambda idx: offspring_fitnesses[idx][0])
+            # Replace it with the best individual from the current population
             offspring[worst_idx] = best_individual
             offspring_fitnesses[worst_idx] = (best_fitness, best_value, best_weight)
 
@@ -189,4 +143,28 @@ def KP_GA(v, w, K, N=50, s=0.2, c=0.8, m=0.01, maxI=1000, penalty=1000, t_size=3
     return selected_items, best_value, best_weight
 
 
+if __name__ == "__main__":
+    v = [10, 12, 8, 5, 8, 5, 6, 7, 6, 12, 8, 8, 10, 9, 8, 3, 7, 8, 5, 6]
+    w = [6, 7, 7, 3, 5, 2, 4, 5, 3, 9, 8, 7, 8, 6, 5, 2, 3, 5, 4, 6]
+    K = 50
 
+    # GA parameters
+    params = {
+        'population_size': 200,
+        'selection_rate': 0.5,
+        'crossover_rate': 0.8,
+        'mutation_rate': 0.02,
+        'max_iterations': 1000,
+        'tournament_size': 5,
+        'elitism': True,
+        'penalty_coefficient': 1000
+    }
+
+    # Run GA
+    selected_items, total_value, total_weight = KS_GA(v, w, K, params)
+
+    # Output the results
+    print("Genetic Algorithm Solution:")
+    print("Selected item indices:", [i + 1 for i in selected_items])  # Adjusting index to match item numbering
+    print("Total value:", total_value)
+    print("Total weight:", total_weight)
